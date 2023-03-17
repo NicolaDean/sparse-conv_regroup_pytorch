@@ -1,4 +1,4 @@
-from pruning import * #Chen group Methods
+from third_party_code.pruning import * #Chen group Methods
 import copy
 
 def applyPruningRegroup(model,initialization,pruning_rate):
@@ -40,10 +40,10 @@ def applyPruningRefill(model,initialization,pruning_rate):
         2.Extract an optimal mask from this pruning
         3.Remove pruning layer
         4.Reset weights to initial values
-        5.Use the custom "regroup-friendly" pruning method.
+        5.Use the custom "refill-friendly" pruning method.
     '''
     #Step1:
-    pruning_model(model, args.rate, conv1=False)
+    pruning_model(model, pruning_rate, conv1=False)
     remain_weight = check_sparsity(model, conv1=False)
     #Step2:
     current_mask = extract_mask(model.state_dict())
@@ -55,3 +55,8 @@ def applyPruningRefill(model,initialization,pruning_rate):
     model.load_state_dict(initialization)
     prune_model_custom_fillback(model, current_mask, train_loader=train_loader)
     check_sparsity(model, conv1=False)
+
+def applyDummyPruningRoutine(model,initialization,pruning_rate):
+    '''
+    This routine do nothing, simply placeholder when we do not want to prune during training
+    '''
