@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import random
 import time
-
+from tqdm import tqdm
 from third_party_code.training import *
 from pruning_helper import *
 
@@ -16,7 +16,7 @@ class TRAIN_CONSTANTS:
     
 def train_step(model,train_loader, criterion, optimizer, epoch,warm_up,validation=True,print_frequency=100):
     '''
-    Train the model with simple backpropagation (NO  pruning)
+    Train the model with simple backpropagation for 1 Epoch (NO  pruning)
     '''
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -25,7 +25,7 @@ def train_step(model,train_loader, criterion, optimizer, epoch,warm_up,validatio
     model.train()
 
     start = time.time()
-    for i, (image, target) in enumerate(train_loader):
+    for i, (image, target) in enumerate(tqdm(train_loader)):
 
         if epoch < warm_up:
             warmup_lr(epoch, i+1, optimizer, one_epoch_step=len(train_loader))
@@ -72,15 +72,18 @@ def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_freq
         2. Validation/Testing
         3. Pruning
     '''
+
+    model.to(TRAIN_CONSTANTS.device)
+    initialization = copy.deepcopy(model.state_dict()) #TODO Understand better how rewind works
+
     for epoch in range(epochs):
         #Step1: Train step
-        train_step(model,train_loader,criterion,optimizer,epoch=epoch,print_frequency=print_frequency)
+        train_step(model,train_loader,criterion,optimizer,epoch=epoch,warm_up= warm_up,print_frequency=print_frequency)
         
         #Step2: Validate the model
         #TODO Test and Validation 
 
         #Step3: Apply the pruning
-        initialization = 0 #TODO (UNDERSTAND WHAT INITIALIZATION IS IN THE CHENG CODE)
         pruning_routine(model,initialization,pruning_rate)
 
 

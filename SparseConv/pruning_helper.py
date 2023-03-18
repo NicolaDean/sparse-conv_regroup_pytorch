@@ -11,6 +11,7 @@ def applyPruningRegroup(model,initialization,pruning_rate):
         5.Reset weights to initial values
         6.Use the custom "regroup-friendly" pruning method.
     '''
+
     #Step1:
     pruning_model(model, pruning_rate, conv1=False)
     remain_weight = check_sparsity(model, conv1=False)
@@ -18,7 +19,7 @@ def applyPruningRegroup(model,initialization,pruning_rate):
     current_mask = extract_mask(model.state_dict())
     current_mask_copy = copy.deepcopy(current_mask)
     #Step3:
-    for m in current_mask_copy:
+    for m in tqdm(current_mask_copy):
         mask = current_mask_copy[m]
         shape = mask.shape
         current_mask[m] = regroup(mask.view(mask.shape[0], -1)).view(*shape)

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.utils.prune as prune
 import os
 import uuid
+from tqdm import tqdm
 
 '''
     Those functions are extracted from code in github repo:
@@ -67,6 +68,7 @@ def extract_mask(model_dict):
     '''
     Extract the mask we need to apply to the real weights to improve the regrouping
     '''
+    print("Extracting mask from layers")
     new_dict = {}
     for key in model_dict.keys():
         if 'mask' in key:
