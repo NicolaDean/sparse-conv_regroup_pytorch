@@ -11,8 +11,10 @@ static unsigned CudaTest(const char *msg) {
 	cudaError_t e;
 	cudaDeviceSynchronize();
 	if (cudaSuccess != (e = cudaGetLastError())) {
-		fprintf(stderr, "%s: %d\n", msg, e); 
-		fprintf(stderr, "%s\n", cudaGetErrorString(e));
+		printf("\033[91m");
+		printf("%s: %d\n", msg, e); 
+		printf("%s\n", cudaGetErrorString(e));
+		printf("\033[0m");
 		exit(-1);
 		//return 1;
 	}
