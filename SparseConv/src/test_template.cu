@@ -7,6 +7,17 @@
 
 extern "C" void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void *kernel_map_t, void *kernel_offset_t, void *kernel_data_t, void *kernel_ptr_sparse_t, void *kernel_map_sparse_t); 
 
+static unsigned CudaTest(const char *msg) {
+	cudaError_t e;
+	cudaDeviceSynchronize();
+	if (cudaSuccess != (e = cudaGetLastError())) {
+		fprintf(stderr, "%s: %d\n", msg, e); 
+		fprintf(stderr, "%s\n", cudaGetErrorString(e));
+		exit(-1);
+		//return 1;
+	}
+	return 0;
+}
 
 
 inline
@@ -36,23 +47,10 @@ void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void
 	_DECL_STREAM
 
 	float time;
-	cudaEvent_t event1, event2;
 	
-	checkCuda(cudaEventCreate(&event1));
-	checkCuda(cudaEventCreate(&event2));
-
-	//checkCuda(cudaDeviceSynchronize());
-	checkCuda(cudaEventRecord(event1, 0));
-
 	_CALL_KERNEL
 
-
-
-	checkCuda(cudaEventRecord(event2, 0));
-	checkCuda(cudaEventSynchronize(event2));
-	checkCuda(cudaEventElapsedTime(&time, event1, event2));
-
-	printf("execution time: %f\n", time);
+	CudaTest("Something gone wrong");
 
 	_CLEAN_UP
 }
