@@ -1,7 +1,7 @@
 from third_party_code.pruning import * #Chen group Methods
 import copy
 
-def applyPruningRegroup(model,initialization,pruning_rate):
+def applyPruningRegroup(model,initialization,pruning_rate,train_loader,multithread=False):
     '''
     Apply chen regroup + IMP pruning:
         1.Prune the model using standard L1 pruning
@@ -34,7 +34,7 @@ def applyPruningRegroup(model,initialization,pruning_rate):
 
     return
 
-def applyPruningRefill(model,initialization,pruning_rate):
+def applyPruningRefill(model,initialization,pruning_rate,train_loader,multithread=False):
     '''
     Apply chen refill + IMP pruning:
         1.Prune the model using standard L1 pruning
@@ -57,7 +57,7 @@ def applyPruningRefill(model,initialization,pruning_rate):
     prune_model_custom_fillback(model, current_mask, train_loader=train_loader)
     check_sparsity(model, conv1=False)
 
-def applyDummyPruningRoutine(model,initialization,pruning_rate):
+def applyDummyPruningRoutine(model,initialization,pruning_rate,train_loader):
     '''
     This routine do nothing, simply placeholder when we do not want to prune during training
     '''

@@ -62,7 +62,7 @@ def train_step(model,train_loader, criterion, optimizer, epoch,warm_up,validatio
 
     return top1.avg
 
-def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_frequency=100,pruning_routine=applyDummyPruningRoutine,pruning_rate=0.6):
+def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_frequency=100,pruning_routine=applyDummyPruningRoutine,pruning_rate=0.5):
     '''
     Apply training step for "Epochs" times.
     -pruning_routine = custom function to apply pruning techniques, default is a dummy function that do nothing
@@ -84,7 +84,7 @@ def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_freq
         #TODO Test and Validation 
 
         #Step3: Apply the pruning
-        pruning_routine(model,initialization,pruning_rate)
+        pruning_routine(model,initialization,pruning_rate,train_loader)
 
 
 

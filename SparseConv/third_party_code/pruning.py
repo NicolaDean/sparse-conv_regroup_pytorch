@@ -76,6 +76,21 @@ def extract_mask(model_dict):
 
     return new_dict
 
+def regroup_multithread(sparse_kernel, t1 = 1.5, nn = 32, B2 = 16, cn = 8):
+    '''
+    Reorganize the weights to make sparse convolution optimizations
+    '''
+    nrows = sparse_kernel.shape[0]
+    ncols = sparse_kernel.shape[1]
+
+    nonempty_rows = []
+
+    for i in range(nrows):
+        nz = 0
+        for j in range(ncols):
+            if sparse_kernel[i, j] != 0:
+                nonempty_rows.append(i)
+                break
 def regroup(sparse_kernel, t1 = 1.5, nn = 32, B2 = 16, cn = 8):
     '''
     Reorganize the weights to make sparse convolution optimizations
@@ -121,6 +136,8 @@ def regroup(sparse_kernel, t1 = 1.5, nn = 32, B2 = 16, cn = 8):
     except:
         return sparse_kernel
     #print (len(s))
+    #Remove all temporary files
+    os.system(f'rm {tempname}*')
 
     assert (len(s) == len(nonempty_rows))
     
@@ -201,6 +218,7 @@ def prune_model_custom(model, mask_dict, conv1=False):
 def prune_model_custom_fillback(model, mask_dict, conv1=False, criteria="remain", train_loader=None, init_weight=None, trained_weight=None, return_mask_only=False, strict=True, fillback_rate=0.0):
 
     feature_maps = []
+    '''
     try:
         model.load_state_dict(trained_weight, strict=strict)
     except:
@@ -210,6 +228,7 @@ def prune_model_custom_fillback(model, mask_dict, conv1=False, criteria="remain"
                 del trained_weight[key[:-5] + "_orig"]
                 del trained_weight[key]
         model.load_state_dict(trained_weight, strict=strict)
+    '''
     def hook(module, input, output):
         feature_maps.append(output)
     
@@ -308,7 +327,7 @@ def prune_model_custom_fillback(model, mask_dict, conv1=False, criteria="remain"
                     mask[samples] = 1
                 
                 if not return_mask_only:
-                    m.weight.data = init_weight[name + ".weight"]
+                    #m.weight.data = init_weight[name + ".weight"]
                     mask = mask.view(*mask_dict[name+'.weight_mask'].shape)
                     print('pruning layer with custom mask:', name)
                     prune.CustomFromMask.apply(m, 'weight', mask=mask.to(m.weight.device))
