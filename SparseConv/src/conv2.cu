@@ -8,17 +8,29 @@
 extern "C" void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void *kernel_map_t, void *kernel_offset_t, void *kernel_data_t, void *kernel_ptr_sparse_t, void *kernel_map_sparse_t); 
 
 static unsigned CudaTest(const char *msg) {
-	cudaError_t e;
+	
 	cudaDeviceSynchronize();
-	if (cudaSuccess != (e = cudaGetLastError())) {
-		fprintf(stderr, "%s: %d\n", msg, e); 
-		fprintf(stderr, "%s\n", cudaGetErrorString(e));
+	cudaError_t e = cudaGetLastError();
+	if (cudaSuccess != (e)) {
+		printf("\033[91m");
+		printf("%s: %d\n", msg, e); 
+		printf("%s in %s at line %d\n", cudaGetErrorString(e),__FILE__, __LINE__);
+		printf("\033[0m");
 		exit(-1);
 		//return 1;
 	}
 	return 0;
 }
 
+
+#define CHECK_KERNELCALL()\
+{ \
+    const cudaError_t err = cudaGetLastError(); \
+    if (err != cudaSuccess) { \
+        printf("%s in %s at line %d\n", cudaGetErrorString(err),__FILE__, __LINE__); \
+        exit(EXIT_FAILURE); \
+    } \
+}\
 
 inline
 cudaError_t checkCuda(cudaError_t result)
@@ -38,19 +50,23 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 
 	int i = (threadIdx.y * 16) + blockIdx.x * (16 << 2);
 	int c = threadIdx.x + blockIdx.y * 64;
+	
 
 	const int *kernel_ptr = kernel_ptr_all + ptr_start;
 	const int *kernel_map = kernel_map_all + ptr_start;
 
 	int kernel_id = i % 16;
+
+
 	int start = kernel_ptr[kernel_id];
 	int end = kernel_ptr[kernel_id+1];
 	int length = end - start;
+	
 
 	int output_x = i / (11 * 16);
 	int output_y = i /16 % 11;
 
-	int x1 = output_x * 1 * 15 * 6 * 32 + output_y * 1 * 6 * 32 + c;
+	int x1 = output_x * 1 * 15 * 6 * 64 + output_y * 1 * 6 * 64 + c;
 
 	float res[16<<1];
 #pragma unroll
@@ -69,7 +85,7 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 		if (((b - start) & 31) == 0) {
 			begin = b;
 			if (threadIdx.x < end - b) {
-				kernel_off = x1 + kernel_offset[threadIdx.x+b] / (6 * 5)  *15 * 6 * 32 + kernel_offset[threadIdx.x+b] / 6 % 5 * 6 * 32   + kernel_offset[threadIdx.x+b] % 6 * 32;
+				kernel_off = x1 + kernel_offset[threadIdx.x+b] / (6 * 5)  *15 * 6 * 64 + kernel_offset[threadIdx.x+b] / 6 % 5 * 6 * 64   + kernel_offset[threadIdx.x+b] % 6 * 64;
 #pragma unroll
 				for (int k=0; k<16; k++) {
 					kernel_value[k] = kernel_data[threadIdx.x+b+length*k];
@@ -142,7 +158,7 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 	if (interm1 < end && ((interm1-start)  & 31) == 0) {
 		begin = interm1;
 		if (threadIdx.x < end - interm1) {
-			kernel_off = x1 + kernel_offset[threadIdx.x+interm1] / (6 * 5)  *15 * 6 * 32 + kernel_offset[threadIdx.x+interm1] / 6 % 5 * 6 * 32   + kernel_offset[threadIdx.x+interm1] % 6 * 32;
+			kernel_off = x1 + kernel_offset[threadIdx.x+interm1] / (6 * 5)  *15 * 6 * 64 + kernel_offset[threadIdx.x+interm1] / 6 % 5 * 6 * 64   + kernel_offset[threadIdx.x+interm1] % 6 * 64;
 #pragma unroll
 			for (int k=0; k<16; k++) {
 				kernel_value[k] = kernel_data[threadIdx.x+interm1+length*k];
@@ -211,11 +227,11 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 		}
 	}
 
-	int output_idx = (output_x*11*16+output_y*16)*32 + c;
+	int output_idx = (output_x*11*16+output_y*16)*64 + c;
 #pragma unroll
 	for (int k=0; k<16; k++) {
-		output_data[output_idx+kernel_map[kernel_id+k]*32] = res[k<<1];
-		output_data[output_idx+kernel_map[kernel_id+k]*32+32] = res[(k<<1)+1];
+		output_data[output_idx+kernel_map[kernel_id+k]*64] = res[k<<1];
+		output_data[output_idx+kernel_map[kernel_id+k]*64+32] = res[(k<<1)+1];
 	}
 
 } 
@@ -236,15 +252,13 @@ void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void
 	cudaStream_t stream_0;
 
 
-	float time;
-	
 	cudaStreamCreate(&stream_0);
-dim3 nblocks_0(30, 0);
+dim3 nblocks_0(30, 1);
 dim3 nthreads_0(32, 4);
 _spmm_conv_0<<<nblocks_0, nthreads_0, 0, stream_0>>>(input_data, output_data, 0, 17, kernel_ptr, kernel_map, kernel_offset, kernel_data);
 
 
-	CudaTest("Something gone wrong")
+	CudaTest("Something gone wrong");
 
 	cudaStreamDestroy(stream_0);
 

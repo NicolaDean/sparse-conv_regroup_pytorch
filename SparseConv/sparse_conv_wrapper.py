@@ -6,6 +6,7 @@ PATH_TO_LIB = "./lib"
 PATH_TO_SRC = "./src"
 
 CUDA_COMPILE_COMMAND = 'nvcc -arch=sm_52  -gencode=arch=compute_50,code=sm_50 -gencode=arch=compute_52,code=sm_52  -gencode=arch=compute_60,code=sm_60  -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70  -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_80,code=compute_80 -Xptxas "-v -dlcm=ca" -shared -Xcompiler=\"-fPIC\"'
+BLOCK_TILING = 64
 
 #--------------------------------------
 #--------------------------------------
@@ -50,6 +51,7 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
     call_kernel = ''
     code_stream_decl = ''
     
+    print(block_ptr)
     print(f"Len: {len(block_ptr)-1}")
     size = len(block_ptr)-1
 
@@ -61,24 +63,42 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
             print("Discard this row")
             continue
         code_stream_decl += f'cudaStream_t stream_{i};\n'
+
+        #Block.y dimension
+        BLOCK_Y = batch_size // BLOCK_TILING
+        if BLOCK_Y == 0:
+            BLOCK_Y = 1
+
         if block_kernel_size % nn == 0:
             print(f"{i} => Multiple of nn => {block_kernel_size}")
+            BLOCK_X = output_width*output_height*block_kernel_size//(4*nn)
+            if BLOCK_X == 0: 
+                BLOCK_X = 1
             code_kernel += code_n.replace('_OWIDTH', str(output_width)).replace('_OHEIGHT', str(output_height)).replace('_OCHANNEL', str(output_channels)).replace('_STRIDE_HEIGHT', str(vertical_stride)).replace('_STRIDE_WIDTH', str(horizontal_stride)).replace('_PADDING_HEIGHT', str(vertical_padding)).replace('_PADDING_WIDTH', str(horizontal_padding)).replace('_KERNEL_HEIGHT', str(kernel_height)).replace('_KERNEL_WIDTH', str(kernel_width)).replace('_INPUT_HEIGHT', str(input_height)).replace('_INPUT_WIDTH', str(input_width)).replace('_DIALATION_HEIGHT', str(vertical_dilation)).replace('_DIALATION_WIDTH', str(horizontal_dilation)).replace('_INPUT_CHANNEL', str(in_channels)).replace('_BATCH_SIZE', str(batch_size)).replace('_NN', str(nn)).replace('_NKERNEL', str(block_kernel_size)).replace('_TOT_KERNEL', str(output_channels)).replace('_spmm_conv_n', f'_spmm_conv_{i}')
             call_kernel += f'cudaStreamCreate(&stream_{i});'
-            call_kernel += f'\ndim3 nblocks_{i}({output_width*output_height*block_kernel_size//(4*nn)}, {batch_size // 64});\ndim3 nthreads_{i}(32, 4);\n_spmm_conv_{i}<<<nblocks_{i}, nthreads_{i}, 0, stream_{i}>>>(input_data, output_data, {block_ptr[i]}, {block_ptr[i+1]}, kernel_ptr, kernel_map, kernel_offset, kernel_data);\n'
+            call_kernel += f'\ndim3 nblocks_{i}({BLOCK_X}, {(BLOCK_Y)});\ndim3 nthreads_{i}(32, 4);\n_spmm_conv_{i}<<<nblocks_{i}, nthreads_{i}, 0, stream_{i}>>>(input_data, output_data, {block_ptr[i]}, {block_ptr[i+1]}, kernel_ptr, kernel_map, kernel_offset, kernel_data);\n'
         else:
             print(f"{i} => NOT Multiple of nn => {block_kernel_size}")
+            BLOCK_X = output_width*output_height//4
+            if BLOCK_X == 0: 
+                BLOCK_X = 1
+            block_x = output_width*output_height*block_kernel_size//(4*nn)
+            if block_x == 0: 
+                block_x = 1
             assert (block_kernel_size < nn)
             code_kernel += code_n.replace('_OWIDTH', str(output_width)).replace('_OHEIGHT', str(output_height)).replace('_OCHANNEL', str(output_channels)).replace('_STRIDE_HEIGHT', str(vertical_stride)).replace('_STRIDE_WIDTH', str(horizontal_stride)).replace('_PADDING_HEIGHT', str(vertical_padding)).replace('_PADDING_WIDTH', str(horizontal_padding)).replace('_KERNEL_HEIGHT', str(kernel_height)).replace('_KERNEL_WIDTH', str(kernel_width)).replace('_INPUT_HEIGHT', str(input_height)).replace('_INPUT_WIDTH', str(input_width)).replace('_DIALATION_HEIGHT', str(vertical_dilation)).replace('_DIALATION_WIDTH', str(horizontal_dilation)).replace('_INPUT_CHANNEL', str(in_channels)).replace('_BATCH_SIZE', str(batch_size)).replace('_NN', str(block_kernel_size)).replace('_NKERNEL', str(block_kernel_size)).replace('_TOT_KERNEL', str(output_channels)).replace('_spmm_conv_n', f'_spmm_conv_{i}')
             call_kernel += f'cudaStreamCreate(&stream_{i});'
-            call_kernel += f'\ndim3 nblocks_{i}({output_width*output_height//4}, {batch_size // 64});\ndim3 nthreads_{i}(32, 4);\n_spmm_conv_{i}<<<nblocks_{i}, nthreads_{i}, 0, stream_{i}>>>(input_data, output_data, {block_ptr[i]}, {block_ptr[i+1]}, kernel_ptr, kernel_map, kernel_offset, kernel_data);\n'
+            call_kernel += f'\ndim3 nblocks_{i}({BLOCK_X}, {BLOCK_Y});\ndim3 nthreads_{i}(32, 4);\n_spmm_conv_{i}<<<nblocks_{i}, nthreads_{i}, 0, stream_{i}>>>(input_data, output_data, {block_ptr[i]}, {block_ptr[i+1]}, kernel_ptr, kernel_map, kernel_offset, kernel_data);\n'
             
     if len(kernel_ptr_sparse) > 1 and len(block_ptr) == 1:
         print("INSIDE!!!!!")
+        BLOCK_X = output_width*output_height*sparse_kernel_size//2
+        if BLOCK_X == 0: 
+            BLOCK_X = 1
         code_stream_decl += 'cudaStream_t stream_sparse;\n'
         sparse_kernel_size = len(kernel_ptr_sparse) - 1
         code_kernel += code_s.replace('_OWIDTH', str(output_width)).replace('_OHEIGHT', str(output_height)).replace('_OCHANNEL', str(output_channels)).replace('_STRIDE_HEIGHT', str(vertical_stride)).replace('_STRIDE_WIDTH', str(horizontal_stride)).replace('_PADDING_HEIGHT', str(vertical_padding)).replace('_PADDING_WIDTH', str(horizontal_padding)).replace('_KERNEL_HEIGHT', str(kernel_height)).replace('_KERNEL_WIDTH', str(kernel_width)).replace('_INPUT_HEIGHT', str(input_height)).replace('_INPUT_WIDTH', str(input_width)).replace('_DIALATION_HEIGHT', str(vertical_dilation)).replace('_DIALATION_WIDTH', str(horizontal_dilation)).replace('_INPUT_CHANNEL', str(in_channels)).replace('_BATCH_SIZE', str(batch_size)).replace('_NKERNEL', str(sparse_kernel_size)).replace('_TOT_KERNEL', str(output_channels))
-        call_kernel += f'cudaStreamCreate(&stream_sparse);\ndim3 nblocks_sparse({output_width*output_height*sparse_kernel_size//2}, {batch_size // 64});\ndim3 nthreads_sparse(32, 2);\n_spmm_conv_sparse<<<nblocks_sparse, nthreads_sparse, 0, stream_sparse>>>(input_data, output_data, kernel_ptr_sparse, kernel_map_sparse, kernel_offset, kernel_data);\n'
+        call_kernel += f'cudaStreamCreate(&stream_sparse);\ndim3 nblocks_sparse({BLOCK_X}, {BLOCK_Y});\ndim3 nthreads_sparse(32, 2);\n_spmm_conv_sparse<<<nblocks_sparse, nthreads_sparse, 0, stream_sparse>>>(input_data, output_data, kernel_ptr_sparse, kernel_map_sparse, kernel_offset, kernel_data);\n'
     code = code_template.replace('_CODE_KERNEL', code_kernel).replace('_CODE_N', code_kernel).replace('_CALL_KERNEL', call_kernel).replace('_DECL_STREAM', code_stream_decl)
         
     cleanup = ""

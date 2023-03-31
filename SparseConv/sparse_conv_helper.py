@@ -211,10 +211,10 @@ class Weight_Regroup_Config:
 
 
             #print(kernel_ptr_sparse)
-            self.block_ptr = torch.IntTensor(block_ptr)
-            self.kernel_ptr = torch.IntTensor(kernel_ptr)
-            self.kernel_map = torch.IntTensor(kernel_map)
-            self.kernel_offset = torch.IntTensor(kernel_offset)
-            self.kernel_value = torch.FloatTensor(kernel_value)
-            self.kernel_ptr_sparse = torch.IntTensor(kernel_ptr_sparse)
-            self.kernel_map_sparse = torch.IntTensor(kernel_map_sparse) 
+            self.block_ptr = torch.IntTensor(block_ptr).to(torch.int).cuda()
+            self.kernel_ptr = torch.IntTensor(kernel_ptr).to(torch.int).cuda()
+            self.kernel_map = torch.IntTensor(kernel_map).to(torch.int).cuda()
+            self.kernel_offset = torch.IntTensor(kernel_offset).to(torch.int).cuda()
+            self.kernel_value = torch.FloatTensor(kernel_value).cuda()
+            self.kernel_ptr_sparse = torch.IntTensor(kernel_ptr_sparse).to(torch.int).cuda()
+            self.kernel_map_sparse = torch.IntTensor(kernel_map_sparse).to(torch.int).cuda() 

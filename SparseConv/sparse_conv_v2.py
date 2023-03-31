@@ -121,18 +121,18 @@ class SparseConv2D(torch.nn.Conv2d):
                 if torch.all(comparison):
                         self.set_mode(Sparse_modes.Test)
                         if print_flag:
-                                print("\033[92mSUCCESS => Same Outputs\033[0m")
+                                print(f"\033[92mSUCCESS [{self.name}] => Same Outputs\033[0m")
                         #print(comparison)
                         return sparse_out
                 else:
                         if print_flag:
-                                print("\033[91mFAIL => Divergent Outputs\033[0m")
+                                print(f"\033[91mFAIL [{self.name}] => Divergent Outputs\033[0m")
                         print(f"Vanilla:{vanilla_out}")
                         print(f"Sparse:{sparse_out}")
                         #plt.imshow(comparison.numpy())
                         #plt.colorbar()
                         #plt.show()
-                        raise Exception("\033[91mFAILED TEST SPARSE BEHAVIOUR => Divergent Outputs\033[0m") 
+                        raise Exception(f"\033[91mFAILED TEST SPARSE BEHAVIOUR ON LAYER [{self.name}]=> Divergent Outputs\033[0m") 
 
                         return False
   
@@ -181,8 +181,10 @@ class SparseConv2D(torch.nn.Conv2d):
       self._lib = sp.gen_custom_sparse_conv_kernel(self.name,self.sparse_weight.block_ptr,self.sparse_weight.kernel_ptr_sparse,in_height,in_width,self.in_channels,output_h,output_h,self.out_channels,batch_size,kernel_h,kernel_w,self.padding,self.padding,self.stride,self.stride,self.dilation,self.dilation,SparseConv2D.nn,SparseConv2D.B2)
 
     #Malloc the output vector
+    
     output = torch.zeros(output_h, output_w, self.out_channels, batch_size).cuda()
-
+    print(f"Output shape: {output.shape}")
+    input = input.cuda()
     #Execute sparse Convolution
     sp.launch_wrapper(self._lib,input,output,self.sparse_weight)
 

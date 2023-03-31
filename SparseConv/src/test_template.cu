@@ -8,12 +8,13 @@
 extern "C" void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void *kernel_map_t, void *kernel_offset_t, void *kernel_data_t, void *kernel_ptr_sparse_t, void *kernel_map_sparse_t); 
 
 static unsigned CudaTest(const char *msg) {
-	cudaError_t e;
+	
 	cudaDeviceSynchronize();
-	if (cudaSuccess != (e = cudaGetLastError())) {
+	cudaError_t e = cudaGetLastError();
+	if (cudaSuccess != (e)) {
 		printf("\033[91m");
 		printf("%s: %d\n", msg, e); 
-		printf("%s\n", cudaGetErrorString(e));
+		printf("%s in %s at line %d\n", cudaGetErrorString(e),__FILE__, __LINE__);
 		printf("\033[0m");
 		exit(-1);
 		//return 1;
@@ -21,6 +22,15 @@ static unsigned CudaTest(const char *msg) {
 	return 0;
 }
 
+
+#define CHECK_KERNELCALL()\
+{ \
+    const cudaError_t err = cudaGetLastError(); \
+    if (err != cudaSuccess) { \
+        printf("%s in %s at line %d\n", cudaGetErrorString(err),__FILE__, __LINE__); \
+        exit(EXIT_FAILURE); \
+    } \
+}\
 
 inline
 cudaError_t checkCuda(cudaError_t result)
@@ -48,8 +58,6 @@ void spmm_conv(void *input_data_t, void *output_data_t, void *kernel_ptr_t, void
 
 	_DECL_STREAM
 
-	float time;
-	
 	_CALL_KERNEL
 
 	CudaTest("Something gone wrong");
