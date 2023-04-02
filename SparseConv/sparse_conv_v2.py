@@ -2,7 +2,8 @@
 #System Modules
 import math
 from enum import Enum
-
+import copy
+import padding as pd
 #TORCH STUFF
 import torch
 import torch.nn as nn
@@ -33,6 +34,8 @@ class SparseConv2D(torch.nn.Conv2d):
     self.filename = ""
     groups = 1
     self.mode = Sparse_modes.Training
+    self.padded_input = None
+    self.padded_batch_size = -1
     super(SparseConv2D, self).__init__(in_channels,out_channels,kernel_size,stride,padding,dilation,groups,None)#Conv2D init function
 
     self._lib = None
@@ -110,9 +113,11 @@ class SparseConv2D(torch.nn.Conv2d):
                 #Set mode to sparse
                 self.set_mode(Sparse_modes.Inference_Sparse)
                 #Compute nn.Conv2D output
+                input = input.detach()
+                copy_input = copy.deepcopy(input)
                 vanilla_out = super().forward(input)
                 #Compute the SparseConv2D output
-                sparse_out  = self.forward(input)
+                sparse_out  = self.forward(copy_input)
 
                 #Comparing the Output
                 print("Vanilla vs SparseConv:")
@@ -129,12 +134,31 @@ class SparseConv2D(torch.nn.Conv2d):
                                 print(f"\033[91mFAIL [{self.name}] => Divergent Outputs\033[0m")
                         print(f"Vanilla:{vanilla_out}")
                         print(f"Sparse:{sparse_out}")
+                        print(f"Sparse:{sparse_out.shape}")
                         #plt.imshow(comparison.numpy())
                         #plt.colorbar()
                         #plt.show()
                         raise Exception(f"\033[91mFAILED TEST SPARSE BEHAVIOUR ON LAYER [{self.name}]=> Divergent Outputs\033[0m") 
 
                         return False
+  def layer_mode_calibration(self, input:Tensor,print_flag=True) ->Tensor:
+        mean_vanilla = 0
+        mean_sparse  = 0
+        NUM_OF_RUN = 100
+        for _ in range(NUM_OF_RUN):
+                out,vanilla,sparse = self.benchmark(input,print_flag=False)
+                mean_vanilla = mean_vanilla + vanilla
+                mean_sparse  = mean_sparse + sparse
+        mean_vanilla = mean_vanilla/NUM_OF_RUN
+        mean_sparse = mean_sparse/NUM_OF_RUN
+        if mean_sparse > mean_vanilla:
+                print("\033[91m")
+        else:
+                print("\033[92m")
+        print(f"Vanilla Execution: {mean_vanilla}")
+        print(f"Sparse  Execution: {mean_sparse}")
+        print("\033[0m")
+        return out
   
   def forward(self, input: Tensor) -> Tensor:  # input: HWCN
     
@@ -144,12 +168,35 @@ class SparseConv2D(torch.nn.Conv2d):
       return self.test_behaviour(input,print_flag=True)
     elif self.mode == Sparse_modes.Benchmark:
       return self.benchmark(input,print_flag=True)[0]
-    '''
     elif self.mode == Sparse_modes.Calibration:
         return self.layer_mode_calibration(input,print_flag=True)
-    '''
 
     #-------------_SPARSE CONV CODE--------------------------------------
+
+    #Kernel Shape
+    kernel_h = self.weight.shape[2]
+    kernel_w = self.weight.shape[3]
+      
+    #Input size
+    in_height  = input.shape[2]
+    in_width   = input.shape[3]
+    batch_size = input.shape[0]
+    
+    #Output size
+    output_h = math.floor((in_height + 2 * self.padding - (self.dilation * (kernel_h - 1) + 1)) / self.stride + 1)
+    output_w = math.floor((in_width  + 2 * self.padding - (self.dilation * (kernel_w - 1) + 1)) / self.stride + 1)
+    '''
+    if (self.padded_input == None and self.padding != 0) or batch_size != self.padded_batch_size:
+                        #print("Padding alignment")
+                        self.padded_batch_size = batch_size
+                        padded_input_size = batch_size * (self.in_channels * (in_height + self.padding) * (in_width + self.padding) + self.padding * (in_width + 2 * self.padding))
+                        self.padded_input = torch.zeros(batch_size,self.in_channels,(in_height + 2*self.padding), (in_width + 2*self.padding)).cuda()
+
+    if self.padding != 0:
+        #Copy input data to the padded input matrix (CUDA kernel will do it)
+        pd.padding_input_alignment(self.padded_input,input,self.in_channels,in_height,in_width,self.padding,self.padding,batch_size)
+        input = self.padded_input
+    '''
 
     #Convert Input from NCHW to HWCN format  ( N => None batch size)
     input = input.transpose(0, 3).transpose(1, 2).transpose(0, 1)
@@ -163,19 +210,7 @@ class SparseConv2D(torch.nn.Conv2d):
       print(f"Regrouping weights for layer: {self.name}")
       self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
 
-    #Kernel Shape
-    kernel_h = self.weight.shape[2]
-    kernel_w = self.weight.shape[3]
-      
-    #Input size
-    in_height  = input.shape[0]
-    in_width   = input.shape[1]
-    batch_size = input.shape[3]
-    
-    #Output size
-    output_h = math.floor((in_height + 2 * self.padding - (self.dilation * (kernel_h - 1) + 1)) / self.stride + 1)
-    output_w = math.floor((in_width  + 2 * self.padding - (self.dilation * (kernel_w - 1) + 1)) / self.stride + 1)
-    
+
     if self._lib == None:
       print("COMPILE CODE")
       self._lib = sp.gen_custom_sparse_conv_kernel(self.name,self.sparse_weight.block_ptr,self.sparse_weight.kernel_ptr_sparse,in_height,in_width,self.in_channels,output_h,output_h,self.out_channels,batch_size,kernel_h,kernel_w,self.padding,self.padding,self.stride,self.stride,self.dilation,self.dilation,SparseConv2D.nn,SparseConv2D.B2)
@@ -183,8 +218,8 @@ class SparseConv2D(torch.nn.Conv2d):
     #Malloc the output vector
     
     output = torch.zeros(output_h, output_w, self.out_channels, batch_size).cuda()
-    print(f"Output shape: {output.shape}")
-    input = input.cuda()
+
+    print(f"NEW INPUT SHAPE : {input.shape}")
     #Execute sparse Convolution
     sp.launch_wrapper(self._lib,input,output,self.sparse_weight)
 

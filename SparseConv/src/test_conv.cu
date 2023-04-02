@@ -62,8 +62,6 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 	int end = kernel_ptr[kernel_id+1];
 	int length = end - start;
 	
-	return;
-	
 
 	int output_x = i / (28 * 6);
 	int output_y = i /6 % 28;

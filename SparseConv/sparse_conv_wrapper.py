@@ -47,20 +47,20 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
     Output the custom code to accelerate the sparse conv
     '''
     print("-------------------------------------")
+    #INITIALIZE THE CODE STRINGS
     code_kernel = ''
     call_kernel = ''
     code_stream_decl = ''
     
-    print(block_ptr)
-    print(f"Len: {len(block_ptr)-1}")
-    size = len(block_ptr)-1
+    
 
+    #CASE A: (MULTIPLE blockptr)
+    size = len(block_ptr)-1
     for i in range(size):
         print(f"Cycle {i}")
         block_kernel_size = block_ptr[i+1] - block_ptr[i] - 1
         block_kernel_size = block_kernel_size.item()
         if block_kernel_size  < 1:
-            print("Discard this row")
             continue
         code_stream_decl += f'cudaStream_t stream_{i};\n'
 
@@ -89,7 +89,7 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
             code_kernel += code_n.replace('_OWIDTH', str(output_width)).replace('_OHEIGHT', str(output_height)).replace('_OCHANNEL', str(output_channels)).replace('_STRIDE_HEIGHT', str(vertical_stride)).replace('_STRIDE_WIDTH', str(horizontal_stride)).replace('_PADDING_HEIGHT', str(vertical_padding)).replace('_PADDING_WIDTH', str(horizontal_padding)).replace('_KERNEL_HEIGHT', str(kernel_height)).replace('_KERNEL_WIDTH', str(kernel_width)).replace('_INPUT_HEIGHT', str(input_height)).replace('_INPUT_WIDTH', str(input_width)).replace('_DIALATION_HEIGHT', str(vertical_dilation)).replace('_DIALATION_WIDTH', str(horizontal_dilation)).replace('_INPUT_CHANNEL', str(in_channels)).replace('_BATCH_SIZE', str(batch_size)).replace('_NN', str(block_kernel_size)).replace('_NKERNEL', str(block_kernel_size)).replace('_TOT_KERNEL', str(output_channels)).replace('_spmm_conv_n', f'_spmm_conv_{i}')
             call_kernel += f'cudaStreamCreate(&stream_{i});'
             call_kernel += f'\ndim3 nblocks_{i}({BLOCK_X}, {BLOCK_Y});\ndim3 nthreads_{i}(32, 4);\n_spmm_conv_{i}<<<nblocks_{i}, nthreads_{i}, 0, stream_{i}>>>(input_data, output_data, {block_ptr[i]}, {block_ptr[i+1]}, kernel_ptr, kernel_map, kernel_offset, kernel_data);\n'
-            
+    #CASE B:  ONLY ONE BLOCK PTR IS AVAILABLE
     if len(kernel_ptr_sparse) > 1 and len(block_ptr) == 1:
         print("INSIDE!!!!!")
         BLOCK_X = output_width*output_height*sparse_kernel_size//2
@@ -99,8 +99,11 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
         sparse_kernel_size = len(kernel_ptr_sparse) - 1
         code_kernel += code_s.replace('_OWIDTH', str(output_width)).replace('_OHEIGHT', str(output_height)).replace('_OCHANNEL', str(output_channels)).replace('_STRIDE_HEIGHT', str(vertical_stride)).replace('_STRIDE_WIDTH', str(horizontal_stride)).replace('_PADDING_HEIGHT', str(vertical_padding)).replace('_PADDING_WIDTH', str(horizontal_padding)).replace('_KERNEL_HEIGHT', str(kernel_height)).replace('_KERNEL_WIDTH', str(kernel_width)).replace('_INPUT_HEIGHT', str(input_height)).replace('_INPUT_WIDTH', str(input_width)).replace('_DIALATION_HEIGHT', str(vertical_dilation)).replace('_DIALATION_WIDTH', str(horizontal_dilation)).replace('_INPUT_CHANNEL', str(in_channels)).replace('_BATCH_SIZE', str(batch_size)).replace('_NKERNEL', str(sparse_kernel_size)).replace('_TOT_KERNEL', str(output_channels))
         call_kernel += f'cudaStreamCreate(&stream_sparse);\ndim3 nblocks_sparse({BLOCK_X}, {BLOCK_Y});\ndim3 nthreads_sparse(32, 2);\n_spmm_conv_sparse<<<nblocks_sparse, nthreads_sparse, 0, stream_sparse>>>(input_data, output_data, kernel_ptr_sparse, kernel_map_sparse, kernel_offset, kernel_data);\n'
+    
+    #COMPOSE THE CODE:
     code = code_template.replace('_CODE_KERNEL', code_kernel).replace('_CODE_N', code_kernel).replace('_CALL_KERNEL', call_kernel).replace('_DECL_STREAM', code_stream_decl)
-        
+    
+    #ADD THE CLEAN UP CODE SEQUENCE (eg: free resources, destroy streams...)
     cleanup = ""
     for i in range(len(block_ptr)-1):
         block_kernel_size = block_ptr[i+1] - block_ptr[i] - 1
