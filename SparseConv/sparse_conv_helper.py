@@ -4,6 +4,7 @@ import math
 import os
 import uuid
 from tqdm import tqdm
+import numpy as np
 import torch
 
 class Weight_Regroup_Config:
@@ -15,7 +16,9 @@ class Weight_Regroup_Config:
     
 
     def __init__(self,w):
-        self.regroup_weight(w)
+        x = w.clone()
+        self.regroup_weight(x)
+
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
         #return self.extract_dense_old(sparse_kernel)
         t1 = 1.5
@@ -114,7 +117,29 @@ class Weight_Regroup_Config:
                     if sparse_kernel[nonempty_rows[r[i]], j] != 0:
                         nnz_rows[i] += 1
 
-            for i in range(ncols):
+            for i in range(1, ncols):
+                dense_cols = cc[:i]
+                flag = False
+                for j in range(len(r)):
+                    if sparse_kernel[nonempty_rows[r[j]], i] != 0:
+                        nnz_rows[j] -= 1
+                    if i <= t1*nnz_rows[j]:
+                        flag = True
+                        break
+                    
+                if flag == False:
+                    dense_rows = [nonempty_rows[i] for i in r]
+				    #print (len(dense_rows), len(dense_cols))
+                    if len(dense_rows) > nn:
+                        dense_rows_1 = dense_rows[:len(dense_rows)//nn*nn]
+                        dense_rows_2 = dense_rows[len(dense_rows)//nn*nn:]
+                        blocks.append((dense_rows_1, dense_cols))
+                        blocks.append((dense_rows_2, dense_cols))
+                    elif len(dense_rows) > B2:
+                        blocks.append((dense_rows, dense_cols))
+                    break
+            '''
+            for i in range(1,ncols):
                 dense_cols = cc[:(i+1)]
                 flag = False
                 for j in range(len(r)):
@@ -135,6 +160,7 @@ class Weight_Regroup_Config:
                     elif len(dense_rows) >  B2:#B2 :
                         blocks.append((dense_rows, dense_cols))
                     break
+            '''
         #print(f"Blocks = {blocks}")
         if len(blocks) > 0:
             return blocks
@@ -173,48 +199,57 @@ class Weight_Regroup_Config:
 
 
         sparse_weight = w.view(kernel_shape[0], kernel_shape[1] * kernel_shape[2] * kernel_shape[3])
+        new_kernel = sparse_weight.clone()
+
+        nnz = 0
+        for a in sparse_weight:
+            for b in a:
+                if b != 0:
+                    nnz += 1
+            
+        sparse_nnz = nnz
         with torch.no_grad():
             blocks = self.extract_dense(sparse_weight,nn,B2)
 
-        for b in blocks:
-            kernel_ptr.append(len(kernel_offset))
-            for r in b[0]:
-                kernel_offset.extend(b[1])
-                kernel_value.extend(sparse_weight[r,b[1]].tolist())
+            for b in blocks:
                 kernel_ptr.append(len(kernel_offset))
-                kernel_map.append(r)
-                with torch.no_grad():
+                for r in b[0]:
+                    kernel_offset.extend(b[1])
+                    kernel_value.extend(sparse_weight[r,b[1]].tolist())
+                    kernel_ptr.append(len(kernel_offset))
+                    kernel_map.append(r)
                     for c in b[1]:
                         if (sparse_weight[r,c] != 0):
                             sparse_weight[r, c] = 0
-                    
-            kernel_map.append(-1)
-            assert (len(kernel_ptr) == len(kernel_map))
-            block_ptr.append(len(kernel_ptr))
+                            sparse_nnz -= 1
+                        else:
+                            new_kernel[r, c] = np.random.rand() 
+                kernel_map.append(-1)
+                assert (len(kernel_ptr) == len(kernel_map))
+                block_ptr.append(len(kernel_ptr))
             
+        kernel_ptr_sparse = []
+        kernel_map_sparse = []
+        nrows = sparse_weight.shape[0]
+        ncols = sparse_weight.shape[1]
+        kernel_ptr_sparse.append(len(kernel_offset))
+        for i in range(nrows):
+            empty = True
+            for j in range(ncols):
+                if sparse_weight[i,j]	!= 0:
+                    kernel_offset.append(j)
+                    kernel_value.append(sparse_weight[i,j])
+                    empty = False
+            if not empty:
+                kernel_ptr_sparse.append(len(kernel_offset))
+                kernel_map_sparse.append(i)
 
-            nrows = sparse_weight.shape[0]
-            ncols = sparse_weight.shape[1]
 
-            kernel_ptr_sparse.append(len(kernel_offset))
-            
-            for i in range(nrows):
-                empty = True
-                for j in range(ncols):
-                    if sparse_weight[i,j]	!= 0:
-                        kernel_offset.append(j)
-                        kernel_value.append(sparse_weight[i,j])
-                        empty = False
-                if not empty:
-                    kernel_ptr_sparse.append(len(kernel_offset))
-                    kernel_map_sparse.append(i)
-
-
-            #print(kernel_ptr_sparse)
-            self.block_ptr = torch.IntTensor(block_ptr).to(torch.int).cuda()
-            self.kernel_ptr = torch.IntTensor(kernel_ptr).to(torch.int).cuda()
-            self.kernel_map = torch.IntTensor(kernel_map).to(torch.int).cuda()
-            self.kernel_offset = torch.IntTensor(kernel_offset).to(torch.int).cuda()
-            self.kernel_value = torch.FloatTensor(kernel_value).cuda()
-            self.kernel_ptr_sparse = torch.IntTensor(kernel_ptr_sparse).to(torch.int).cuda()
-            self.kernel_map_sparse = torch.IntTensor(kernel_map_sparse).to(torch.int).cuda() 
+        #print(kernel_ptr_sparse)
+        self.block_ptr = torch.IntTensor(block_ptr).cuda()
+        self.kernel_ptr = torch.IntTensor(kernel_ptr).cuda()
+        self.kernel_map = torch.IntTensor(kernel_map).cuda()
+        self.kernel_offset = torch.IntTensor(kernel_offset).cuda()
+        self.kernel_value = torch.FloatTensor(kernel_value).cuda()
+        self.kernel_ptr_sparse = torch.IntTensor(kernel_ptr_sparse).cuda()
+        self.kernel_map_sparse = torch.IntTensor(kernel_map_sparse).cuda() 
