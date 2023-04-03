@@ -8,9 +8,7 @@ import numpy as np
 import torch
 
 class Weight_Regroup_Config:
-    def __init__(self):
-        self.force_vanilla_cnn = True
-        
+
     def __init__(self,weight_origin,weight_mask):
         with  torch.no_grad():
             w = weight_origin.clone()
@@ -19,9 +17,16 @@ class Weight_Regroup_Config:
     
 
     def __init__(self,w):
+        if w == None:
+            self.force_vanilla_cnn = True
+            return
+        
         x = w.clone()
         self.regroup_weight(x)
 
+    def __init__(self):
+        self.force_vanilla_cnn = True
+        
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
         self.force_vanilla_cnn = False
         #return self.extract_dense_old(sparse_kernel)
