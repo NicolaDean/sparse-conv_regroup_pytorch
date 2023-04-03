@@ -144,7 +144,6 @@ class LeNet5(sp.SparseModel):
         probs = F.softmax(logits, dim=1)
         return logits, probs
 
-
 class AlexNet(sp.SparseModel):
     def __init__(self, n_classes,sparse_conv_flag=True):
         self._sparse_conv_flag=sparse_conv_flag
@@ -274,7 +273,7 @@ print(f"INPUT SHAPE : {dummy_input.shape}")
 input = copy.deepcopy(dummy_input)
 input = input.cuda()
 
-model._set_sparse_layers_mode(sp.Sparse_modes.Test)
+model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Sparse)
 model.forward(dummy_input)
 model._set_sparse_layers_mode(sp.Sparse_modes.Test)
 model.forward(dummy_input)

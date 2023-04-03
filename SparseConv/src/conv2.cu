@@ -50,18 +50,14 @@ void _spmm_conv_0(const float * __restrict__ input_data, float *output_data, con
 
 	int i = (threadIdx.y * 16) + blockIdx.x * (16 << 2);
 	int c = threadIdx.x + blockIdx.y * 64;
-	
 
 	const int *kernel_ptr = kernel_ptr_all + ptr_start;
 	const int *kernel_map = kernel_map_all + ptr_start;
 
 	int kernel_id = i % 16;
-
-
 	int start = kernel_ptr[kernel_id];
 	int end = kernel_ptr[kernel_id+1];
 	int length = end - start;
-	
 
 	int output_x = i / (11 * 16);
 	int output_y = i /16 % 11;

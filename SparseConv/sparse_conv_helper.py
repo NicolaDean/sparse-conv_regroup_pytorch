@@ -20,6 +20,7 @@ class Weight_Regroup_Config:
         self.regroup_weight(x)
 
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
+        self.force_vanilla_cnn = False
         #return self.extract_dense_old(sparse_kernel)
         t1 = 1.5
         cn = 8
@@ -68,9 +69,11 @@ class Weight_Regroup_Config:
             clusters = {}
             s = f.readlines()
         except:
+            self.force_vanilla_cnn = True
             print("Something gone wrong")
             return [(list(range(nrows)), list(range(ncols)))]
         if len(s) != len(nonempty_rows):
+            self.force_vanilla_cnn = True
             print("Something gone wrong case Len(s)!=len(nonemptyrows)")
             return [(list(range(nrows)), list(range(ncols)))]
 
@@ -116,7 +119,7 @@ class Weight_Regroup_Config:
                 for j in range(ncols):
                     if sparse_kernel[nonempty_rows[r[i]], j] != 0:
                         nnz_rows[i] += 1
-
+            '''
             for i in range(1, ncols):
                 dense_cols = cc[:i]
                 flag = False
@@ -139,7 +142,7 @@ class Weight_Regroup_Config:
                         blocks.append((dense_rows, dense_cols))
                     break
             '''
-            for i in range(1,ncols):
+            for i in range(ncols):
                 dense_cols = cc[:(i+1)]
                 flag = False
                 for j in range(len(r)):
@@ -160,11 +163,12 @@ class Weight_Regroup_Config:
                     elif len(dense_rows) >  B2:#B2 :
                         blocks.append((dense_rows, dense_cols))
                     break
-            '''
+            
         #print(f"Blocks = {blocks}")
         if len(blocks) > 0:
             return blocks
         else:
+            self.force_vanilla_cnn = True
             print("Something goes wrong.... the num of block is 0")
             return [(list(range(nrows)), list(range(ncols)))]
 

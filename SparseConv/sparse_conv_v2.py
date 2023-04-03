@@ -3,7 +3,7 @@
 import math
 from enum import Enum
 import copy
-import padding as pd
+#import padding as pd
 #TORCH STUFF
 import torch
 import torch.nn as nn
@@ -134,7 +134,10 @@ class SparseConv2D(torch.nn.Conv2d):
                                 print(f"\033[91mFAIL [{self.name}] => Divergent Outputs\033[0m")
                         print(f"Vanilla:{vanilla_out}")
                         print(f"Sparse:{sparse_out}")
+                        print(f"Vanilla:{vanilla_out.shape}")
                         print(f"Sparse:{sparse_out.shape}")
+
+                        print(self.sparse_weight)
                         #plt.imshow(comparison.numpy())
                         #plt.colorbar()
                         #plt.show()
@@ -161,6 +164,12 @@ class SparseConv2D(torch.nn.Conv2d):
         return out
   
   def forward(self, input: Tensor) -> Tensor:  # input: HWCN
+    
+    if self.sparse_weight.force_vanilla_cnn:
+        print("\033[93m")
+        print(f"NOT GOOD REGROUP => FORCE VANILLA CNN FOR LAYER: {self.name}")
+        print("\033[0m")
+        return super().forward(input) #If not good sparsity configuration (No good regroup quality)
     
     if self.mode == Sparse_modes.Training or self.mode == Sparse_modes.Inference_Vanilla:
       return super().forward(input) #IF WE ARE IN TRAINING USE THE CLASSIC CONV2D forward to build the weights
@@ -197,7 +206,10 @@ class SparseConv2D(torch.nn.Conv2d):
         pd.padding_input_alignment(self.padded_input,input,self.in_channels,in_height,in_width,self.padding,self.padding,batch_size)
         input = self.padded_input
     '''
-
+    if self.padding != 0:
+        p = nn.ConstantPad2d(self.padding,0)
+        input = p(input).cuda()
+    
     #Convert Input from NCHW to HWCN format  ( N => None batch size)
     input = input.transpose(0, 3).transpose(1, 2).transpose(0, 1)
     
