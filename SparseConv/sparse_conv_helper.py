@@ -8,6 +8,9 @@ import numpy as np
 import torch
 
 class Weight_Regroup_Config:
+    def __init__(self):
+        self.force_vanilla_cnn = True
+        
     def __init__(self,weight_origin,weight_mask):
         with  torch.no_grad():
             w = weight_origin.clone()

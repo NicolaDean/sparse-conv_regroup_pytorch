@@ -39,7 +39,7 @@ class SparseConv2D(torch.nn.Conv2d):
     super(SparseConv2D, self).__init__(in_channels,out_channels,kernel_size,stride,padding,dilation,groups,None)#Conv2D init function
 
     self._lib = None
-    self.sparse_weight = None
+    self.sparse_weight = sp_helper.Weight_Regroup_Config()
 
     self.in_channels = in_channels
     self.out_channels = out_channels
