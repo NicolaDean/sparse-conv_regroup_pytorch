@@ -56,10 +56,12 @@ class SparseConv2D(torch.nn.Conv2d):
     self.name = name
     if use_vanilla_weights:
          self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
+         delattr(self,"weight_orig")
     else:
         if self.weight_orig == None: 
                 print("NO WEIGHTS AVAILABLE=> FORCE VANILLA")
                 self.sparse_weight = sp_helper.Weight_Regroup_Config()
+                delattr(self,"weight_orig")
                 return
         self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_origin,self.weight_mask)
     #TODO

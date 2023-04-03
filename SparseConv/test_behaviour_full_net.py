@@ -6,7 +6,11 @@ import torch
 import torch.nn.functional as F
 import torch.nn.utils.prune as prune
 import copy
-
+from training_helper import *
+import torch.nn.init as init
+from torchsummary import summary
+import torch.optim as optim
+import torch.optim as optim
 
 class VGG16(sp.SparseModel):
     """
@@ -142,7 +146,7 @@ class LeNet5(sp.SparseModel):
         x = self.tanh4(x)
         logits = self.linear2(x)
         probs = F.softmax(logits, dim=1)
-        return logits, probs
+        return probs
 
 class AlexNet(sp.SparseModel):
     def __init__(self, n_classes,sparse_conv_flag=True):
@@ -245,7 +249,7 @@ model.to(device)
 print("--------------------------------------")
 print(f"-----Pruning the Network at [{PRUNING_PARAMETER}]-----")
 print("--------------------------------------")
-pruning_model_random(model,PRUNING_PARAMETER)
+#pruning_model_random(model,PRUNING_PARAMETER)
 
 #SET MODEL IN TESTING MODE (For each SparseConv compare Conv2D with SparseConv2D)
 print("----------------------------------")
@@ -253,6 +257,21 @@ print("-----Initialize the Network-------")
 print("----------------------------------")
 model._initialize_sparse_layers(input_shape=INPUT_SHAPE,use_vanilla_weights=True)
 model._set_sparse_layers_mode(sp.Sparse_modes.Test)
+
+#------------------------------------------
+#------------------------------------------
+#----------TRAINING-------------------------
+#------------------------------------------
+#------------------------------------------
+
+'''
+train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(BATCH_SIZE)
+#DEFINE LOSS FUNCTION
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+
+train_model(model,train_loader,criterion,optimizer,epochs=8,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
+'''
 
 #------------------------------------------
 #------------------------------------------

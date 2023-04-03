@@ -6,6 +6,8 @@ import time
 from tqdm import tqdm
 from third_party_code.training import *
 from pruning_helper import *
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 class TRAIN_CONSTANTS:
     warm_up = 10
@@ -86,5 +88,29 @@ def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_freq
         #Step3: Apply the pruning
         pruning_routine(model,initialization,pruning_rate,train_loader)
 
+def load_datasets_MNIST(BATCH_SIZE):
+    '''
+    Here we load and prepare the data, just a simple resize should
+    be enough
+    '''
+    transf = transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
 
+    # download and create datasets
+    train_dataset = datasets.MNIST(root='mnist_data',
+                                   train=True,
+                                   transform=transf,
+                                   download=True)
 
+    valid_dataset = datasets.MNIST(root='mnist_data',
+                                   train=False,
+                                   transform=transf)
+
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=BATCH_SIZE,
+                              shuffle=True)
+
+    valid_loader = DataLoader(dataset=valid_dataset,
+                              batch_size=BATCH_SIZE,
+                              shuffle=False)
+
+    return train_dataset, valid_dataset, train_loader, valid_loader
