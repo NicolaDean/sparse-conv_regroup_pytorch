@@ -166,9 +166,9 @@ class SparseConv2D(torch.nn.Conv2d):
   def forward(self, input: Tensor) -> Tensor:  # input: HWCN
     
     if self.sparse_weight.force_vanilla_cnn:
-        print("\033[93m")
-        print(f"NOT GOOD REGROUP => FORCE VANILLA CNN FOR LAYER: {self.name}")
-        print("\033[0m")
+        #print("\033[93m")
+        #print(f"NOT GOOD REGROUP => FORCE VANILLA CNN FOR LAYER: {self.name}")
+        #print("\033[0m")
         return super().forward(input) #If not good sparsity configuration (No good regroup quality)
     
     if self.mode == Sparse_modes.Training or self.mode == Sparse_modes.Inference_Vanilla:
