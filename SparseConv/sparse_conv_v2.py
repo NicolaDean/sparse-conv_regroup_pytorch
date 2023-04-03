@@ -54,6 +54,10 @@ class SparseConv2D(torch.nn.Conv2d):
   def initialize_layer(self,name,use_vanilla_weights=False):
     print(f"Initialize weights of layer: {name}")
     self.name = name
+    if self.sparse_weight.force_vanilla_cnn:
+                print("FORCE VANILLA")
+                return
+    
     if use_vanilla_weights:
          self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
          delattr(self,"weight_orig")
