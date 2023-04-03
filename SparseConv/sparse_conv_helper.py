@@ -9,24 +9,22 @@ import torch
 
 class Weight_Regroup_Config:
 
-    def __init__(self,weight_origin,weight_mask):
-        with  torch.no_grad():
-            w = weight_origin.clone()
-            w = w * weight_mask
-        self.regroup_weight(w)
-    
-
-    def __init__(self,w):
-        if w == None:
+    def __init__(self,weight_origin=None,weight_mask= None):
+        #No Weights availables
+        if weight_origin == None and weight_mask == None:
             self.force_vanilla_cnn = True
             return
-        
-        x = w.clone()
-        self.regroup_weight(x)
-
-    def __init__(self):
-        self.force_vanilla_cnn = True
-        
+        #Only original weights
+        with  torch.no_grad():
+            if weight_mask == None:
+                x = weight_origin.clone()
+                self.regroup_weight(x)
+                return
+        #Pruning Mask + original
+            w = weight_origin.clone()
+            w = w * weight_mask
+            self.regroup_weight(w)
+            
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
         self.force_vanilla_cnn = False
         #return self.extract_dense_old(sparse_kernel)
