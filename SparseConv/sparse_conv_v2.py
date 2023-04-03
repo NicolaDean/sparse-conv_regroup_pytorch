@@ -48,6 +48,7 @@ class SparseConv2D(torch.nn.Conv2d):
     self.padding = padding
     self.dilation = dilation
     self.bias = bias
+    self.weight_origin = None
     print(f"OUT CHANNELS: {self.out_channels}")
 
   def initialize_layer(self,name,use_vanilla_weights=False):
@@ -56,7 +57,11 @@ class SparseConv2D(torch.nn.Conv2d):
     if use_vanilla_weights:
          self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
     else:
-      self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_origin,self.weight_mask)
+        if self.weight_origin == None: 
+                print("NO WEIGHTS AVAILABLE=> FORCE VANILLA")
+                self.sparse_weight = sp_helper.Weight_Regroup_Config()
+                return
+        self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_origin,self.weight_mask)
     #TODO
     #INITIALIZE CUSTOM KERNEL
     #INITIALIZE REGROUPING
