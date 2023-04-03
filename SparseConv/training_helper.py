@@ -88,13 +88,15 @@ def train_model(model,train_loader,criterion,optimizer,epochs,warm_up,print_freq
         #Step3: Apply the pruning
         pruning_routine(model,initialization,pruning_rate,train_loader)
 
-def load_datasets_MNIST(BATCH_SIZE):
+def load_datasets_MNIST(BATCH_SIZE,transform=None):
     '''
     Here we load and prepare the data, just a simple resize should
     be enough
     '''
-    transf = transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
-
+    if transform == None:
+      transf = transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
+    else:
+      transf = transform
     # download and create datasets
     train_dataset = datasets.MNIST(root='mnist_data',
                                    train=True,
