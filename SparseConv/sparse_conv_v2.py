@@ -55,7 +55,7 @@ class SparseConv2D(torch.nn.Conv2d):
     self.name = name
     
     if hasattr(self,"weight_orig"):
-                self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_origin,self.weight_mask)
+                self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_orig,self.weight_mask)
     else:
                 self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
     #TODO
@@ -206,11 +206,11 @@ class SparseConv2D(torch.nn.Conv2d):
         #Copy input data to the padded input matrix (CUDA kernel will do it)
         pd.padding_input_alignment(self.padded_input,input,self.in_channels,in_height,in_width,self.padding,self.padding,batch_size)
         input = self.padded_input
-    '''
+    
     if self.padding != 0:
         p = nn.ConstantPad2d(self.padding,0)
         input = p(input).cuda()
-    
+    '''
     #Convert Input from NCHW to HWCN format  ( N => None batch size)
     input = input.transpose(0, 3).transpose(1, 2).transpose(0, 1)
     
@@ -232,7 +232,7 @@ class SparseConv2D(torch.nn.Conv2d):
     
     output = torch.zeros(output_h, output_w, self.out_channels, batch_size).cuda()
 
-    print(f"NEW INPUT SHAPE : {input.shape}")
+    #print(f"NEW INPUT SHAPE : {input.shape}")
     #Execute sparse Convolution
     sp.launch_wrapper(self._lib,input,output,self.sparse_weight)
 
