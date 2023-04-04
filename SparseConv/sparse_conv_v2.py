@@ -41,7 +41,7 @@ class SparseConv2D(torch.nn.Conv2d):
     super(SparseConv2D, self).__init__(in_channels,out_channels,kernel_size,stride,padding,dilation,groups,None)#Conv2D init function
 
     self._lib = None
-    self.sparse_weight = sp_helper.Weight_Regroup_Config()
+    self.sparse_weight = sp_helper.Weight_Regroup_Config(create_param=True)
 
     self.in_channels = in_channels
     self.out_channels = out_channels
@@ -51,6 +51,15 @@ class SparseConv2D(torch.nn.Conv2d):
     self.dilation = dilation
     self.bias = bias
     print(f"OUT CHANNELS: {self.out_channels}")
+  
+  def load_weights(self,block_ptr,kernel_ptr,kernel_map,kernel_offset,kernel_value,kernel_ptr_sparse,kernel_map_sparse):
+        self.sparse_weight.block_ptr            = block_ptr
+        self.sparse_weight.kernel_ptr           = kernel_ptr
+        self.sparse_weight.kernel_map           = kernel_map
+        self.sparse_weight.kernel_offset        = kernel_offset
+        self.sparse_weight.kernel_value         = kernel_value
+        self.sparse_weight.kernel_ptr_sparse    = kernel_ptr_sparse
+        self.sparse_weight.kernel_map_sparse    = kernel_map_sparse
 
   def initialize_layer(self,name,use_vanilla_weights=False,force_load_code=False):
     print(f"Initialize weights of layer: {name}")
@@ -61,6 +70,8 @@ class SparseConv2D(torch.nn.Conv2d):
                 self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_orig,self.weight_mask)
     else:
                 self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight)
+    
+    #print(f"{self.sparse_weight.state_dict()}")
     #TODO
     #INITIALIZE CUSTOM KERNEL
     #INITIALIZE REGROUPING
@@ -148,6 +159,7 @@ class SparseConv2D(torch.nn.Conv2d):
                         raise Exception(f"\033[91mFAILED TEST SPARSE BEHAVIOUR ON LAYER [{self.name}]=> Divergent Outputs\033[0m") 
 
                         return False
+  
   def layer_mode_calibration(self, input:Tensor,print_flag=True) ->Tensor:
         mean_vanilla = 0
         mean_sparse  = 0
@@ -302,3 +314,23 @@ class SparseModel(nn.Module):
         def forward(self,input: Tensor) -> Tensor:
                 #IMPLEMENT IT AS YOU LIKE
                 return
+
+def load_sparse_weights(model,path):
+    params = torch.load(path)
+    
+    for name, m in model.named_modules():
+        if isinstance(m, SparseConv2D):
+            force_vanilla = name + ".sparse_weight.force_vanilla_cnn"
+            name_ = name + ".sparse_weight."
+            if not params[force_vanilla]:
+                print(f"Loading {name} sparse weights")
+                block_ptr           = params[name_ + "block_ptr"]
+                kernel_ptr          = params[name_ + "kernel_ptr"]
+                kernel_map          = params[name_ + "kernel_map"]
+                kernel_offset       = params[name_ + "kernel_offset"]
+                kernel_value        = params[name_ + "kernel_value"]
+                kernel_ptr_sparse   = params[name_ + "kernel_ptr_sparse"]
+                kernel_map_sparse   = params[name_ + "kernel_map_sparse"]
+                m.load_weights(block_ptr,kernel_ptr,kernel_map,kernel_offset,kernel_value,kernel_ptr_sparse,kernel_map_sparse)
+            else:
+                print(f"{name} Do not have sparse weights")
