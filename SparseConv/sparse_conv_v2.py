@@ -50,6 +50,7 @@ class SparseConv2D(torch.nn.Conv2d):
     self.padding = padding
     self.dilation = dilation
     self.bias = bias
+    self.force_load_code = False
     print(f"OUT CHANNELS: {self.out_channels}")
   
   def load_weights(self,block_ptr,kernel_ptr,kernel_map,kernel_offset,kernel_value,kernel_ptr_sparse,kernel_map_sparse):
@@ -60,6 +61,8 @@ class SparseConv2D(torch.nn.Conv2d):
         self.sparse_weight.kernel_value         = kernel_value
         self.sparse_weight.kernel_ptr_sparse    = kernel_ptr_sparse
         self.sparse_weight.kernel_map_sparse    = kernel_map_sparse
+        self.sparse_weight.force_vanilla_cnn    = False
+        self.force_load_code                    = True
 
   def initialize_layer(self,name,use_vanilla_weights=False,force_load_code=False):
     print(f"Initialize weights of layer: {name}")
@@ -320,6 +323,7 @@ def load_sparse_weights(model,path):
     model.load_state_dict(params,strict=False)
     for name, m in model.named_modules():
         if isinstance(m, SparseConv2D):
+            m.name = name
             force_vanilla = name + ".sparse_weight.force_vanilla_cnn"
             name_ = name + ".sparse_weight."
             if not params[force_vanilla]:

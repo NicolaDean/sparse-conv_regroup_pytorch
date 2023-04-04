@@ -8,7 +8,8 @@ import torch.nn.functional as F
 import torch.nn.utils.prune as prune
 import copy
 from training_helper import *
-
+import torch.optim as optim
+import torch.optim as optim
 
 class VGG16(sp.SparseModel):
     """
@@ -20,7 +21,7 @@ class VGG16(sp.SparseModel):
         super(VGG16, self).__init__(sparse_conv_flag)
 
         self.layer1 = nn.Sequential(
-            self.conv(3, 64, kernel_size=3, stride=1, padding=1),
+            self.conv(1, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU())
         self.layer2 = nn.Sequential(
@@ -78,7 +79,7 @@ class VGG16(sp.SparseModel):
             nn.MaxPool2d(kernel_size = 2, stride = 2))
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(7*7*512, 4096),
+            nn.Linear(512, 4096), #7*7*512 if input is 227
             nn.ReLU())
         self.fc1 = nn.Sequential(
             nn.Dropout(0.5),
@@ -217,19 +218,90 @@ IMG_SIZE        = 32
 BATCH_SIZE      = 64
 INPUT_CHANNELS  = 1
 PRUNING_PARAMETER = 0.90
+
+INPUT_SHAPE = (BATCH_SIZE,INPUT_CHANNELS,IMG_SIZE,IMG_SIZE)
+
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+#Declaring the Model
+model = VGG16(N_CLASSES,sparse_conv_flag=True)
+model = model.to(device)
+#------------------------------------------
+#------------------------------------------
+#----------TRAINING-------------------------
+#------------------------------------------
+#------------------------------------------
+model._set_sparse_layers_mode(sp.Sparse_modes.Training)
+train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(BATCH_SIZE)
+#DEFINE LOSS FUNCTION
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+train_model(model,train_loader,criterion,optimizer,epochs=2,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
+
+#PRUNE THE MODEL TO ADD SPARSITY
+print("--------------------------------------")
+print(f"-----Pruning the Network at [{PRUNING_PARAMETER}]-----")
+print("--------------------------------------")
+#pruning_model_random(model,PRUNING_PARAMETER)
+
+#Step1:
+initialization = copy.deepcopy(model.state_dict()) #TODO Understand better how rewind works
+pruning_model(model, PRUNING_PARAMETER, conv1=False)
+remain_weight = check_sparsity(model, conv1=False)
+#Step2:
+current_mask = extract_mask(model.state_dict())
+current_mask_copy = copy.deepcopy(current_mask)
+#Step3:
+for m in tqdm(current_mask_copy):
+    mask = current_mask_copy[m]
+    shape = mask.shape
+    current_mask[m] = regroup(mask.view(mask.shape[0], -1)).view(*shape)
+#Step4:
+remove_prune(model, conv1=False)
+#Step5:
+model.load_state_dict(initialization)
+#Step6:
+prune_model_custom(model, current_mask)
+#Step7:
+check_sparsity(model, conv1=False)
+
+print(f"W1 => {model.conv2.weight}")
+print(f"W1 => {model.conv2.weight_orig}")
+print(f"W1 => {model.conv2.weight_mask}")
+
+train_model(model,train_loader,criterion,optimizer,epochs=1,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
+
+model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Vanilla)
+print("Time Execution for golden PRE INIT = ",testing(model,valid_loader,device))
+
+#SET MODEL IN TESTING MODE (For each SparseConv compare Conv2D with SparseConv2D)
+print("----------------------------------")
+print("-----Initialize the Network-------")
+print("----------------------------------")
+check_sparsity(model,conv1=False)
+model._initialize_sparse_layers(input_shape=INPUT_SHAPE,use_vanilla_weights=True,force_load_code=False)
+path = "./saved_models/lenet.par"
+
+model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Vanilla)
+print("Time Execution for golden POST INIT = ",testing(model,valid_loader,device))
+model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Sparse)
+print("Time Execution for sparse POST INIT= ",testing(model,valid_loader,device))
+
+torch.save(model.state_dict(),path)
+
+#------------------------------------------
+#------------------------------------------
+#----------LOADING BACK-------------------------
+#------------------------------------------
+#------------------------------------------
 #Declaring the Model
 model = LeNet5(N_CLASSES,sparse_conv_flag=True)
 model = model.to(device)
 
+
 #Loading Sparse Weights
 path = "./saved_models/lenet.par"
 sp.load_sparse_weights(model,path)
-
-
-
-train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(BATCH_SIZE)
 
 NUM_OF_TEST = 1000
 loader = valid_loader
@@ -237,6 +309,3 @@ model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Vanilla)
 print("Time Execution for golden = ",testing(model,loader,device))
 model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Sparse)
 print("Time Execution for sparse = ",testing(model,loader,device))
-
-
-exit()

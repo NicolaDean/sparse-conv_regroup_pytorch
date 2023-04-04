@@ -214,6 +214,7 @@ def prune_model_custom(model, mask_dict, conv1=False):
             if (name == 'conv1' and conv1) or (name != 'conv1'):
                 print('pruning layer with custom mask:', name)
                 prune.CustomFromMask.apply(m, 'weight', mask=mask_dict[name+'.weight_mask'].to(m.weight.device))
+                m.weight = m.weight_orig * m.weight_mask
 
 def prune_model_custom_fillback(model, mask_dict, conv1=False, criteria="remain", train_loader=None, init_weight=None, trained_weight=None, return_mask_only=False, strict=True, fillback_rate=0.0):
 
