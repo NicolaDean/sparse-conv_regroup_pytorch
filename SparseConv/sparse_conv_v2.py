@@ -317,7 +317,7 @@ class SparseModel(nn.Module):
 
 def load_sparse_weights(model,path):
     params = torch.load(path)
-    
+    model.load_state_dict(params,strict=False)
     for name, m in model.named_modules():
         if isinstance(m, SparseConv2D):
             force_vanilla = name + ".sparse_weight.force_vanilla_cnn"
