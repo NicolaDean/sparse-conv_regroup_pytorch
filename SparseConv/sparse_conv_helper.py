@@ -128,8 +128,6 @@ class Weight_Regroup_Config(torch.nn.Module):
 
             #sort the non_zero_Count of the groups by index (so cc contain indexes in order of num of non zero element in that column)
             cc = sorted(list(range(ncols)), key=lambda x:nnz_cols[x], reverse=True) 
-            #print(f"Non Zero Cols sorted:\n {cc}")
-            #TILL HERE IT WORKS (Cort columns index by non zero element inside the column)
             nnz_rows = [0] * len(r)
 
             for i in range(len(r)):
