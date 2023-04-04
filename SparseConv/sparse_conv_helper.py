@@ -7,9 +7,20 @@ from tqdm import tqdm
 import numpy as np
 import torch
 
-class Weight_Regroup_Config:
+class Weight_Regroup_Config(torch.nn.Module):
 
-    def __init__(self,weight_origin=None,weight_mask= None):
+    def __init__(self,weight_origin=None,weight_mask= None,create_param = False):
+        super(Weight_Regroup_Config, self).__init__()
+        if create_param:
+            self.block_ptr = [0]
+            self.kernel_ptr = []
+            self.kernel_map = []
+            self.kernel_offset = []
+            self.kernel_value = []
+
+            self.kernel_ptr_sparse = []
+            self.kernel_map_sparse = []
+            
         #No Weights availables
         if weight_origin == None and weight_mask == None:
             self.force_vanilla_cnn = True
@@ -24,7 +35,7 @@ class Weight_Regroup_Config:
             w = weight_origin.clone()
             w = w * weight_mask
             self.regroup_weight(w)
-
+        
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
         self.force_vanilla_cnn = False
         #return self.extract_dense_old(sparse_kernel)
@@ -256,6 +267,7 @@ class Weight_Regroup_Config:
 
 
         #print(kernel_ptr_sparse)
+        
         self.block_ptr = torch.IntTensor(block_ptr).cuda()
         self.kernel_ptr = torch.IntTensor(kernel_ptr).cuda()
         self.kernel_map = torch.IntTensor(kernel_map).cuda()
@@ -263,3 +275,15 @@ class Weight_Regroup_Config:
         self.kernel_value = torch.FloatTensor(kernel_value).cuda()
         self.kernel_ptr_sparse = torch.IntTensor(kernel_ptr_sparse).cuda()
         self.kernel_map_sparse = torch.IntTensor(kernel_map_sparse).cuda() 
+
+        if not self.force_vanilla_cnn:
+            self.block_ptr = torch.nn.Parameter(self.block_ptr,requires_grad=False)
+            self.kernel_ptr = torch.nn.Parameter(self.kernel_ptr,requires_grad=False)
+            self.kernel_map = torch.nn.Parameter(self.kernel_map,requires_grad=False)
+            self.kernel_offset = torch.nn.Parameter(self.kernel_offset,requires_grad=False)
+            self.kernel_value = torch.nn.Parameter(self.kernel_value,requires_grad=False)
+            self.kernel_ptr_sparse = torch.nn.Parameter(self.kernel_ptr_sparse,requires_grad=False)
+            self.kernel_map_sparse = torch.nn.Parameter(self.kernel_map_sparse,requires_grad=False)
+
+        self.force_vanilla_cnn = torch.BoolTensor([self.force_vanilla_cnn]).cuda()
+        self.force_vanilla_cnn = torch.nn.Parameter(self.force_vanilla_cnn,requires_grad=False)

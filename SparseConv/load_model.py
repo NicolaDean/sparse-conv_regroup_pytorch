@@ -1,3 +1,4 @@
+
 import sparse_conv_v2 as sp
 import copy
 
@@ -7,10 +8,7 @@ import torch.nn.functional as F
 import torch.nn.utils.prune as prune
 import copy
 from training_helper import *
-import torch.nn.init as init
-from torchsummary import summary
-import torch.optim as optim
-import torch.optim as optim
+
 
 class VGG16(sp.SparseModel):
     """
@@ -214,126 +212,31 @@ def pruning_model_random(model, px):
         amount=px,
     ) 
 
-#ALEXNET
-N_CLASSES       = 10
-IMG_SIZE        = 227
-BATCH_SIZE      = 64
-INPUT_CHANNELS  = 3
-PRUNING_PARAMETER = 0.90  
-#LENET
 N_CLASSES       = 10
 IMG_SIZE        = 32
 BATCH_SIZE      = 64
 INPUT_CHANNELS  = 1
 PRUNING_PARAMETER = 0.90
-
-#VGG16
-N_CLASSES       = 10
-IMG_SIZE        = 32
-BATCH_SIZE      = 64
-INPUT_CHANNELS  = 1
-PRUNING_PARAMETER = 0.90
-
-
-
-INPUT_SHAPE = (BATCH_SIZE,INPUT_CHANNELS,IMG_SIZE,IMG_SIZE)
-
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-# Assuming that we are on a CUDA machine, this should print a CUDA device:
-print(device)
 
-#LOAD THE MODEL
+#Declaring the Model
 model = LeNet5(N_CLASSES,sparse_conv_flag=True)
-model.to(device)
+model = model.to(device)
 
-
-#------------------------------------------
-#------------------------------------------
-#----------TRAINING-------------------------
-#------------------------------------------
-#------------------------------------------
-model._set_sparse_layers_mode(sp.Sparse_modes.Training)
-train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(BATCH_SIZE)
-#DEFINE LOSS FUNCTION
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-#train_model(model,train_loader,criterion,optimizer,epochs=4,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
-
-#PRUNE THE MODEL TO ADD SPARSITY
-print("--------------------------------------")
-print(f"-----Pruning the Network at [{PRUNING_PARAMETER}]-----")
-print("--------------------------------------")
-pruning_model_random(model,PRUNING_PARAMETER)
-
-#SET MODEL IN TESTING MODE (For each SparseConv compare Conv2D with SparseConv2D)
-print("----------------------------------")
-print("-----Initialize the Network-------")
-print("----------------------------------")
-model._initialize_sparse_layers(input_shape=INPUT_SHAPE,use_vanilla_weights=True,force_load_code=False)
-
+#Loading Sparse Weights
 path = "./saved_models/lenet.par"
-
-torch.save(model.state_dict(),path)
-'''
-model.load_state_dict(torch.load(path))
-model.to(device)
-model.eval()
-'''
-
-def load_sparse_weights(model,path):
-    params = torch.load(path)
-    
-    for name, m in model.named_modules():
-        if isinstance(m, sp.SparseConv2D):
-            print(f"NAME:{name}")
-            x = name + ".sparse_weight.force_vanilla_cnn"
-            print(name, "\t", params[x].size())
-
-model = LeNet5(N_CLASSES,sparse_conv_flag=True)
-load_sparse_weights(model,path)
-
-exit()
-def testing(model,loader):
-  correct = 0
-  total = 0
-  starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
-  timings=np.zeros((469,1))
-  i=0
-  # since we're not training, we don't need to calculate the gradients for our outputs
-  with torch.no_grad():
-      for data in loader:
-          images, labels = data[0].to(device), data[1].to(device)
-          starter.record()
-          # calculate outputs by running images through the network
-          outputs = model(images)
-          ender.record()
-          # WAIT FOR GPU SYNC
-          torch.cuda.synchronize()
-          curr_time = starter.elapsed_time(ender)
-          timings[i] = curr_time
-          # the class with the highest energy is what we choose as prediction
-          _, predicted = torch.max(outputs.data, 1)
-          total += labels.size(0)
-          correct += (predicted == labels).sum().item()
-          i = i+1
-  mean_syn = np.sum(timings) / 469
-  std_syn = np.std(timings)
-  print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
-  return mean_syn
+sp.load_sparse_weights(model,path)
 
 
+
+train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(BATCH_SIZE)
 
 NUM_OF_TEST = 1000
 loader = valid_loader
 model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Vanilla)
-print("Time Execution for golden = ",testing(model,loader))
+print("Time Execution for golden = ",testing(model,loader,device))
 model._set_sparse_layers_mode(sp.Sparse_modes.Inference_Sparse)
-print("Time Execution for sparse = ",testing(model,loader))
+print("Time Execution for sparse = ",testing(model,loader,device))
 
-
-# Print model's state_dict
-print("Model's state_dict:")
-for param_tensor in model.state_dict():
-    print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
 exit()
