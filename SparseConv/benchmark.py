@@ -257,7 +257,7 @@ train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(B
 #DEFINE LOSS FUNCTION
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-#train_model(model,train_loader,criterion,optimizer,epochs=4,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
+train_model(model,train_loader,criterion,optimizer,epochs=4,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
 
 #PRUNE THE MODEL TO ADD SPARSITY
 print("--------------------------------------")
