@@ -4,6 +4,7 @@ import sparse_conv_helper as sp_helper
 
 PATH_TO_LIB = "./lib"
 PATH_TO_SRC = "./src"
+PATH_TO_GEN = "./gen"
 
 CUDA_COMPILE_COMMAND = 'nvcc -arch=sm_52  -gencode=arch=compute_50,code=sm_50 -gencode=arch=compute_52,code=sm_52  -gencode=arch=compute_60,code=sm_60  -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70  -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_80,code=compute_80 -Xptxas "-v -dlcm=ca" -shared -Xcompiler=\"-fPIC\"'
 BLOCK_TILING = 64
@@ -121,17 +122,18 @@ def generate_actual_code(code_n,code_s,code_template,block_ptr,kernel_ptr_sparse
     print("-------------------------------------")
     return code
     
-def compile_custom_code(code,lib_name):
+def compile_custom_code(code,lib_name,force_load=False):
     '''
     Write the Custom kernel on a cuda file and compile it to a shared library file
     '''
     #Create a file and write the custom code on it
-    path = os.path.join(PATH_TO_SRC,lib_name)
+    path = os.path.join(PATH_TO_GEN,lib_name)
     path_lib = os.path.join(PATH_TO_LIB,lib_name)
 
-    file_name = path + ".cu"
-    with open(file_name, 'w') as fw:
-        fw.write(code)
+    if not force_load:
+        file_name = path + ".cu"
+        with open(file_name, 'w') as fw:
+            fw.write(code)
 
     #Compile custom kernel with CUDA compiler
     compile_line = f'{CUDA_COMPILE_COMMAND} -o {path_lib}.so {path}.cu -O2'
@@ -161,7 +163,6 @@ def load_custom_code_wrapper(lib_name):
                                 ]
     return _lib
 
-
 #--------------------------------------
 #--------------------------------------
 #-------------WRAPPER GENERATOR--------
@@ -186,7 +187,8 @@ def gen_custom_sparse_conv_kernel(layer_name,
                                 vertical_padding,horizontal_padding,                       #Convolution padding    sizes
                                 vertical_stride,horizontal_stride,                         #Convolution stride     sizes
                                 vertical_dilation,horizontal_dilation,                     #Convolution dilation   sizes
-                                nn=32,B2=16                                                #Sparse algorithm parameters (weight regrouping)
+                                nn=32,B2=16,                                                #Sparse algorithm parameters (weight regrouping)
+                                force_loading=False
                                 ):
     '''
     Generate the Custom code for this kernel and compile it then return a wrapper to call it from python
@@ -196,20 +198,26 @@ def gen_custom_sparse_conv_kernel(layer_name,
     #Load the template code for sparse conv kernels
     code_n,code_s,code_template = load_src_files() 
 
-    #Execute the transformation to customize it
-    code = generate_actual_code(code_n,code_s,code_template,
-                                block_ptr,kernel_ptr_sparse,
-                                input_height,input_width,in_channels,                      #Input  info
-                                output_width,output_height,output_channels,batch_size,     #Output info
-                                kernel_height,kernel_width,                                #Convolution kernel     sizes
-                                vertical_padding,horizontal_padding,                       #Convolution padding    sizes
-                                vertical_stride,horizontal_stride,                         #Convolution stride     sizes
-                                vertical_dilation,horizontal_dilation,                     #Convolution dilation   sizes
-                                nn=32,B2=16                                                #Sparse algorithm parameters (weight regrouping)
-                                )
 
-    #Compile the code
-    compile_custom_code(code,layer_name)
+    if force_loading:
+        path = os.path.join(PATH_TO_LIB,layer_name+".so")
+        force_loading = os.path.exists(path)
+        print(f"We are forcing load of existing code: {path}")
+
+    if not force_loading:
+        #Execute the transformation to customize it
+        code = generate_actual_code(code_n,code_s,code_template,
+                                    block_ptr,kernel_ptr_sparse,
+                                    input_height,input_width,in_channels,                      #Input  info
+                                    output_width,output_height,output_channels,batch_size,     #Output info
+                                    kernel_height,kernel_width,                                #Convolution kernel     sizes
+                                    vertical_padding,horizontal_padding,                       #Convolution padding    sizes
+                                    vertical_stride,horizontal_stride,                         #Convolution stride     sizes
+                                    vertical_dilation,horizontal_dilation,                     #Convolution dilation   sizes
+                                    nn=32,B2=16                                                #Sparse algorithm parameters (weight regrouping)
+                                    )    
+        #Compile the code
+        compile_custom_code(code,layer_name,force_load=force_loading)
 
     #Load the wrapper
     wrapper = load_custom_code_wrapper(layer_name)

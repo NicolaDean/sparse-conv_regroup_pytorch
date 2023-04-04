@@ -24,7 +24,7 @@ class Weight_Regroup_Config:
             w = weight_origin.clone()
             w = w * weight_mask
             self.regroup_weight(w)
-            
+
     def extract_dense(self, sparse_kernel,nn=32,B2=16):
         self.force_vanilla_cnn = False
         #return self.extract_dense_old(sparse_kernel)
@@ -104,7 +104,7 @@ class Weight_Regroup_Config:
         blocks = []
 
         #For each partitioned ROW group
-        for r in tqdm(clusters):
+        for r in clusters:
             #FIND NON ZERO COLUMNS
             nnz_cols = [0] * ncols
             for i in range(ncols):

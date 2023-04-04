@@ -3,6 +3,7 @@
 import math
 from enum import Enum
 import copy
+from tqdm  import tqdm
 #import padding as pd
 #TORCH STUFF
 import torch
@@ -10,7 +11,8 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn.common_types import _size_1_t, _size_2_t, _size_3_t
 from torch.nn.modules.utils import _single, _pair, _triple, _reverse_repeat_tuple
-
+from multiprocessing import Pool
+import torch.multiprocessing as mp
 #Custom Modules
 import sparse_conv_wrapper as sp 
 import sparse_conv_helper as sp_helper
@@ -50,9 +52,10 @@ class SparseConv2D(torch.nn.Conv2d):
     self.bias = bias
     print(f"OUT CHANNELS: {self.out_channels}")
 
-  def initialize_layer(self,name,use_vanilla_weights=False):
+  def initialize_layer(self,name,use_vanilla_weights=False,force_load_code=False):
     print(f"Initialize weights of layer: {name}")
     self.name = name
+    self.force_load_code = force_load_code
     
     if hasattr(self,"weight_orig"):
                 self.sparse_weight = sp_helper.Weight_Regroup_Config(self.weight_orig,self.weight_mask)
@@ -226,7 +229,7 @@ class SparseConv2D(torch.nn.Conv2d):
 
     if self._lib == None:
       print("COMPILE CODE")
-      self._lib = sp.gen_custom_sparse_conv_kernel(self.name,self.sparse_weight.block_ptr,self.sparse_weight.kernel_ptr_sparse,in_height,in_width,self.in_channels,output_h,output_h,self.out_channels,batch_size,kernel_h,kernel_w,self.padding,self.padding,self.stride,self.stride,self.dilation,self.dilation,SparseConv2D.nn,SparseConv2D.B2)
+      self._lib = sp.gen_custom_sparse_conv_kernel(self.name,self.sparse_weight.block_ptr,self.sparse_weight.kernel_ptr_sparse,in_height,in_width,self.in_channels,output_h,output_h,self.out_channels,batch_size,kernel_h,kernel_w,self.padding,self.padding,self.stride,self.stride,self.dilation,self.dilation,SparseConv2D.nn,SparseConv2D.B2,self.force_load_code)
 
     #Malloc the output vector
     
@@ -261,12 +264,33 @@ class SparseModel(nn.Module):
                         if isinstance(m, SparseConv2D):
                                 m.set_mode(mode)
 
-        def _initialize_sparse_layers(self,input_shape,use_vanilla_weights=False):
+        def _initialize_sparse_layers(self,input_shape,use_vanilla_weights=False,force_load_code=False):
                 #Give each layer a unique name (to compile the custom kernel file or load it back from memory)
                 for name, m in self.named_modules():
                   if isinstance(m, SparseConv2D):
-                    m.initialize_layer(name,use_vanilla_weights)
+                    m.initialize_layer(name,use_vanilla_weights,force_load_code=force_load_code)
                 
+                #Change the Network mode to sparse
+                self._set_sparse_layers_mode(mode = Sparse_modes.Inference_Sparse)
+                #Generate a dummy input
+                dummy_input = torch.randn(input_shape[0], input_shape[1],input_shape[2],input_shape[3], dtype=torch.float).cuda()
+                dummy_input = dummy_input.cuda()
+                #Do a forword so that all sparseConv layer initialize the CSR kernel and stuff
+                self.forward(dummy_input)
+        def _multi_thread_init_call(self,layer):
+              layer[0].initialize_layer(layer[1],use_vanilla_weights=layer[2])
+
+        def _initialize_sparse_layers_mt(self,input_shape,use_vanilla_weights=False):
+                layers = []
+                for name, m in self.named_modules():
+                  if isinstance(m, SparseConv2D):
+                    layers.append([m,name,use_vanilla_weights])
+                        
+                with Pool(5) as pool:
+                        for result in tqdm(pool.imap(self._multi_thread_init_call, layers),total=len(layers)):
+                          m,res = result
+                          print(f"Completed: {m}")
+
                 #Change the Network mode to sparse
                 self._set_sparse_layers_mode(mode = Sparse_modes.Inference_Sparse)
                 #Generate a dummy input

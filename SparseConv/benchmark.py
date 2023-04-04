@@ -220,18 +220,20 @@ IMG_SIZE        = 227
 BATCH_SIZE      = 64
 INPUT_CHANNELS  = 3
 PRUNING_PARAMETER = 0.90  
-#VGG16
-N_CLASSES       = 10
-IMG_SIZE        = 32
-BATCH_SIZE      = 64
-INPUT_CHANNELS  = 3
-PRUNING_PARAMETER = 0.90
 #LENET
 N_CLASSES       = 10
 IMG_SIZE        = 32
 BATCH_SIZE      = 64
 INPUT_CHANNELS  = 1
 PRUNING_PARAMETER = 0.90
+
+#VGG16
+N_CLASSES       = 10
+IMG_SIZE        = 32
+BATCH_SIZE      = 64
+INPUT_CHANNELS  = 1
+PRUNING_PARAMETER = 0.90
+
 
 
 INPUT_SHAPE = (BATCH_SIZE,INPUT_CHANNELS,IMG_SIZE,IMG_SIZE)
@@ -255,7 +257,7 @@ train_dataset, valid_dataset, train_loader, valid_loader = load_datasets_MNIST(B
 #DEFINE LOSS FUNCTION
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-train_model(model,train_loader,criterion,optimizer,epochs=4,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
+#train_model(model,train_loader,criterion,optimizer,epochs=4,warm_up=0,print_frequency=300,pruning_routine=applyDummyPruningRoutine)
 
 #PRUNE THE MODEL TO ADD SPARSITY
 print("--------------------------------------")
@@ -267,8 +269,7 @@ pruning_model_random(model,PRUNING_PARAMETER)
 print("----------------------------------")
 print("-----Initialize the Network-------")
 print("----------------------------------")
-model._initialize_sparse_layers(input_shape=INPUT_SHAPE,use_vanilla_weights=True)
-
+model._initialize_sparse_layers(input_shape=INPUT_SHAPE,use_vanilla_weights=True,force_load_code=True)
 
 def testing(model,loader):
   correct = 0
