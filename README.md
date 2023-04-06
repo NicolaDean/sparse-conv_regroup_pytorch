@@ -1,6 +1,6 @@
 # sparse-conv_regroup_pytorch
 
-This repo is a "more user friendly" version of the Sparse Conv implementation discussed in this [repo](https://github.com/VITA-Group/Structure-LTH).
+This repo is a revisited version of the Sparse Conv implementation discussed in this [repo](https://github.com/VITA-Group/Structure-LTH).
 
 Their work aim at combining a particular pruning technique (The IMP + regroup of weights) with a Sparse Convolution implementation that use a custom sparse compression data structure (weight regrouping). 
 
